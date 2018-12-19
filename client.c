@@ -1,11 +1,8 @@
-
-
 #include "client.h"
 
 int main()
 {
     int port;
-//    char pt[MAX_MESSAGE];
 
     printf("포트를 입력하세요 :");
     scanf("%d", &port);
@@ -46,6 +43,42 @@ void JoinChat(int SocketSd)
 
     while(1)
         pause();
+}
+
+void *RecvMsg(void *user)
+{
+    User ur = *(User *)user;
+    char rbuf[MAX_MESSAGE];
+    
+    while(1)
+    {
+        if(flag == 0)
+        {
+            recv(ur.userSd, rbuf, sizeof(rbuf), 0);
+            
+        }    
+        while(recv(ur.userSd, rbuf, sizeof(rbuf), 0) > 0)
+        {
+            fputs(rbuf, stdout);
+            memset(rbuf, 0, sizeof(rbuf));
+        }
+    }
+}
+
+void *SendMsg(void *user)
+{
+    User ur = *(User *)user;
+    char sbuf[MAX_MESSAGE];
+
+    while(1)
+    {
+        fgets(sbuf, sizeof(sbuf), stdin);
+        send(ur.userSd, sbuf, sizeof(sbuf), 0);
+        if(!strncmp(sbuf, "/f", 2))
+            flag = 1;
+
+        memset(sbuf, 0, sizeof(sbuf));
+    }
 }
 
 int SockSetting(char *ip, int port)
