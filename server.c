@@ -30,7 +30,7 @@ int main()
 void *ThreadMain(void *room)
 {
     pthread_mutex_lock(&roommutex);
-    User user;// = *(User *)ur;
+    User user;
     Room rm;
 
     int SocketSd;
@@ -116,6 +116,58 @@ void *JoinChat(void *user)
     pthread_join(ptr[1], NULL);
 }
 
+void *ConveyMessage(void *user)
+{
+    User ur = *(User *)user;
+    int i;
+    char rbuf[MAX_MESSAGE];
+    char sbuf[MAX_MESSAGE];
+
+    while(recv(ur.userSd, rbuf, sizeof(rbuf), 0) >0)
+    {
+        if(!strncmp(rbuf,"/f",2))
+        {
+            SendFile(ur, rbuf);
+            continue;
+        }
+        else
+        {
+            sprintf(sbuf, "%s : %s", ur.userNick, rbuf);
+            for(i=0;i<rUsernum;i++)
+            {
+                if(userList[i].userSd == ur.userSd)
+                    continue;
+                if(userList[i].roomSd == ur.roomSd)
+                    send(userList[i].userSd, sbuf, sizeof(sbuf), 0);
+            }
+        }
+
+        memset(rbuf, 0, sizeof(rbuf));
+        memset(sbuf, 0, sizeof(sbuf));
+    }    
+
+    ClientExit(ur);
+}
+
+void SendFile(User user, char *rbuf)
+{
+    int fd;
+    char *fp;
+    char sbuf[MAX_MESSAGE];
+
+    fp = strtok(rbuf, " ");
+    fd = open(fp, O_RDONLY, 0644);
+    
+    while(read(fd, rbuf, sizeof(rbuf)) > 0)
+    {
+        if(send(user.userSd, rbuf, sizeof(rbuf), 0) == -1)
+        {
+            perror("send");
+            exit(1);
+        }
+    }
+}
+
 void ClientExit(User user)
 {
     int i, j;
@@ -145,6 +197,31 @@ void ClientExit(User user)
     }
     rUsernum --;
     pthread_mutex_unlock(&usermutex);
+}
+
+void *Notice(void *user)
+{
+    int i;
+    User ur = *(User *)user;
+    char sbuf[MAX_MESSAGE];
+    char inbuf[MAX_MESSAGE];
+    
+    sprintf(sbuf, "%s님이 접속하였습니다.\n", ur.userNick);
+    for(i=0;i<rUsernum;i++)
+    {
+        if(userList[i].roomSd == ur.roomSd)
+            send(userList[i].userSd, sbuf, strlen(sbuf), 0);
+    }
+
+    while(1)
+    {
+        memset(sbuf, 0, sizeof(sbuf));
+        memset(inbuf, 0, sizeof(inbuf));
+        fgets(inbuf, sizeof(inbuf), stdin);
+        sprintf(sbuf, "[공지] : %s\n", inbuf);
+        for(i=0;i<rUsernum;i++)
+            send(userList[i].userSd, sbuf, strlen(sbuf), 0);
+    }
 }
 
 int ServerSetting(char *ip, int port)
